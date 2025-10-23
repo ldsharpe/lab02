@@ -1,0 +1,136 @@
+from pybricks.hubs import EV3Brick
+from pybricks.ev3devices import (Motor, TouchSensor, ColorSensor,
+                                 InfraredSensor, UltrasonicSensor, GyroSensor)
+from pybricks.parameters import Port, Stop, Direction, Button, Color
+from pybricks.tools import wait, StopWatch, DataLog
+
+import math, time
+
+
+class Robot:
+    def __init__(self):
+        self.brick = EV3Brick()
+
+        # Physical 
+        self.length       = 0.18        # meters
+        self.width        = 0.111       # meters
+        self.height       = 0.128       # meters
+        self.wheel_radius = 0.028       # meters 
+
+        # Motors
+        self.left_motor = Motor(Port.B, Direction.CLOCKWISE)
+        self.right_motor = Motor(Port.C, Direction.CLOCKWISE)
+
+        # Sensors
+        self.ultrasonic_sensor = UltrasonicSensor(Port.S1)
+        self.touch_sensor_left = TouchSensor(Port.S2)
+        self.touch_sensor_right = TouchSensor(Port.S3)
+
+
+    def get_ultrasonic_distance(self):
+        return self.ultrasonic_sensor.distance() / 1000
+
+    def distance_to_degrees(self, distance):
+        return (distance / (2 * math.pi * self.wheel_radius)) * 360
+
+    def degrees_to_distance(self, degrees):
+        rotations = degrees / 360
+        distance = rotations * (2 * math.pi * self.wheel_radius)
+        return distance
+
+    def move_forward(self, distance, speed=200):
+        """
+        Moves robot forward by given distance (in meters)
+        at a given speed (in deg/s on the motors)
+        """
+
+        distance += 0.02
+
+        # Converting distance to wheel rotation required in degrees
+        rotation_degrees = (distance / (2 * math.pi * self.wheel_radius)) * 360
+        
+        # Run both motors
+        self.left_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=False)
+        self.right_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=True)
+    
+    def move_backward(self, distance, speed=200):
+        self.move_forward(-distance)
+    
+    def is_touching_wall(self):
+        return self.touch_sensor_left.pressed() and self.touch_sensor_right.pressed()
+
+    def beep(self):
+        self.brick.speaker.beep()
+
+    def wait_for_button_press(self):
+        while Button.CENTER not in self.brick.buttons.pressed():
+            wait(10)
+        
+    def wall_follow(self, target_distance=0.15, follow_distance=2.0, speed=200):
+
+        MAX_DISTANCE = 0.30  
+
+        self.left_motor.reset_angle(0)
+        self.right_motor.reset_angle(0)
+
+        Kp = 350
+        Ki = 0.00
+        Kd = 200
+
+        integral = 0
+        last_error = 0
+        dt_ms = 20  
+
+        distance_travelled = 0
+
+        while distance_travelled < follow_distance:
+
+            dist = self.get_ultrasonic_distance()
+
+            if dist <= 0 or dist >= MAX_DISTANCE * 0.95:
+                self.left_motor.run(speed)
+                self.right_motor.run(0)
+            else:
+                error = target_distance - dist
+
+                integral += error * (dt_ms / 1000)
+                derivative = (error - last_error) / (dt_ms / 1000)
+                last_error = error
+
+                correction = (Kp * error) + (Ki * integral) + (Kd * derivative)
+
+                left_speed = speed - correction
+                right_speed = speed + correction
+
+                self.left_motor.run(left_speed)
+                self.right_motor.run(right_speed)
+
+            avg_angle = (abs(self.left_motor.angle()) +
+                         abs(self.right_motor.angle())) / 2
+            distance_travelled = self.degrees_to_distance(avg_angle)
+
+            if self.touch_sensor_left.pressed() or self.touch_sensor_right.pressed():
+                self.brick.speaker.beep()
+                break
+
+            wait(dt_ms)
+
+        self.left_motor.stop()
+        self.right_motor.stop()
+        self.brick.speaker.beep()
+        
+
+
+    def turn(self, angle, speed):
+        wheel_base_radius = self.width / 2
+        arc_length = (math.pi * wheel_base_radius * abs(angle)) / 180
+        rotation_degrees = (arc_length / (2 * math.pi * self.wheel_radius)) * 360
+
+        if angle > 0:
+            self.left_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=False)
+            self.right_motor.run_angle(speed, -rotation_degrees, Stop.BRAKE, wait=True)
+        else:
+            self.left_motor.run_angle(speed, -rotation_degrees, Stop.BRAKE, wait=False)
+            self.right_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=True)
+
+
