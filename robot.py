@@ -38,6 +38,10 @@ class Robot:
         distance = rotations * (2 * math.pi * self.wheel_radius)
         return distance
 
+    def creep_forward(self, speed=100):
+        self.left_motor.run(speed)
+        self.right_motor.run(speed)
+
     def move_forward(self, distance, speed=200):
         """
         Moves robot forward by given distance (in meters)
@@ -66,59 +70,43 @@ class Robot:
         while Button.CENTER not in self.brick.buttons.pressed():
             wait(10)
         
-    def wall_follow(self, target_distance=0.15, follow_distance=2.0, speed=200):
-
-        MAX_DISTANCE = 0.30  
-
-        self.left_motor.reset_angle(0)
-        self.right_motor.reset_angle(0)
-
-        Kp = 350
-        Ki = 0.00
-        Kd = 200
-
-        integral = 0
+    def wall_follow(self, target_distance=0.15, base_speed=100, kp=120, ki=0, kd=40):
         last_error = 0
-        dt_ms = 20  
-
         distance_travelled = 0
 
-        while distance_travelled < follow_distance:
+        while True:
+            distance = self.get_ultrasonic_distance()
+            if distance <= 0 or distance > 1.0:
+                distance = target_distance
 
-            dist = self.get_ultrasonic_distance()
+            if distance > 0.5:
+                while distance > 0.25:
+                    self.turn(10, 50)
+                    distance = self.get_ultrasonic_distance()
+                    wait(100)
 
-            if dist <= 0 or dist >= MAX_DISTANCE * 0.95:
-                self.left_motor.run(speed)
-                self.right_motor.run(0)
-            else:
-                error = target_distance - dist
+            error = target_distance - distance
+            derivative = error - last_error
+            last_error = error
 
-                integral += error * (dt_ms / 1000)
-                derivative = (error - last_error) / (dt_ms / 1000)
-                last_error = error
+            correction = (kp * error) + (kd * derivative)
 
-                correction = (Kp * error) + (Ki * integral) + (Kd * derivative)
+            # Restrict correction strength
+            correction = max(min(correction, 50), -50)
 
-                left_speed = speed - correction
-                right_speed = speed + correction
+            left_speed = base_speed + correction
+            right_speed = base_speed - correction
 
-                self.left_motor.run(left_speed)
-                self.right_motor.run(right_speed)
+            left_speed = max(min(left_speed, 120), 40)
+            right_speed = max(min(right_speed, 120), 40)
 
-            avg_angle = (abs(self.left_motor.angle()) +
-                         abs(self.right_motor.angle())) / 2
-            distance_travelled = self.degrees_to_distance(avg_angle)
+            self.left_motor.run(left_speed)
+            self.right_motor.run(right_speed)
 
-            if self.touch_sensor_left.pressed() or self.touch_sensor_right.pressed():
-                self.brick.speaker.beep()
-                break
+            wait(30)
 
-            wait(dt_ms)
 
-        self.left_motor.stop()
-        self.right_motor.stop()
-        self.brick.speaker.beep()
-        
+
 
 
     def turn(self, angle, speed):
