@@ -11,11 +11,11 @@ def main():
         
     bot.wait_for_button_press()
 
-    # while bot.is_touching_wall() == False:
-    #     bot.creep_forward()
+    while bot.is_touching_wall() == False:
+        bot.creep_forward()
     
-    # bot.move_backward(0.15)
-    # bot.turn(90, 100)
+    bot.move_backward(0.15)
+    bot.turn(90, 100)
     bot.wall_follow_left()
 
 

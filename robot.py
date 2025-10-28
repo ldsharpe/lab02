@@ -124,7 +124,7 @@ class Robot:
 
     def wall_follow_left(
         self,
-        target_distance=0.16,    
+        target_distance=0.15,    
         follow_distance=2.25,     
         base_speed=100, 
         kp=150, ki=2.0, kd=50 
@@ -152,7 +152,7 @@ class Robot:
                 distance = target_distance
 
             # If wall too close, we move the robot right slightly
-            if distance < 0.05 or distance > 0.50 :
+            if distance < 0.08 or distance > 1.00 :
                 self.turn(8, 50)
                 wait(100)
                 distance = self.get_ultrasonic_distance()
