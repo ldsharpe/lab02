@@ -2,31 +2,43 @@
 from robot import Robot
 from pybricks.tools import wait
 from pybricks.parameters import Button
+import math
+
 
 # Lucas Sharpe - 730545934
-# Yuvraj Jain - 730465868
-
-# accurate distance is goal distance - 0.02m
+# Yuvraj Jain  - 730465868
 
 def main():
     bot = Robot()
-        
+
+    # Wait for user
     bot.wait_for_button_press()
 
-    start_pos = [0, 0, 0]
-    return_pos = [0, 0, 0]
+    start_pos  = [0.0, 0.0, 0.0]
+    return_pos = [0.0, 0.0, 0.0]
 
-    while bot.is_touching_wall() == False:
-        bot.creep_forward()
-    
+    # Approach the wall with live odometry
+    bot.creep_forward(speed=200)
+    while not bot.is_touching_wall():
+        bot.update_position()
+        wait(30)
+    bot.left_motor.stop(); bot.right_motor.stop()
+
+    # Back off and turn RIGHT (negative angle under +CCW convention)
     bot.move_backward(0.18)
-    bot.turn(90, 100)
+    bot.turn(-90, 100)
 
+    # Record the pose we want to return to (x, y, theta)
     return_pos = [bot.get_x(), bot.get_y(), bot.get_theta()]
-    check = True
 
+    # (Optional) show heading right after the turn for sanity
+    bot.brick.screen.clear()
+    bot.brick.screen.print("theta(deg): " + str(int(bot.get_theta() * 180.0 / math.pi)))
+    wait(400)
+
+    # Follow the wall until we loop back near return_pos
     bot.wall_follow(start_pos, return_pos)
 
 
-
-main()
+if __name__ == "__main__":
+    main()
