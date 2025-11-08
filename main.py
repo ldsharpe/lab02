@@ -1,7 +1,6 @@
 #!/usr/bin/env pybricks-micropython
 from robot import Robot
 from pybricks.tools import wait
-from pybricks.parameters import Button
 import math
 
 
@@ -17,26 +16,26 @@ def main():
     start_pos  = [0.0, 0.0, 0.0]
     return_pos = [0.0, 0.0, 0.0]
 
-    # Approach the wall with live odometry
+    # Approach the (front) wall with live odometry
     bot.creep_forward(speed=200)
     while not bot.is_touching_wall():
         bot.update_position()
         wait(30)
     bot.left_motor.stop(); bot.right_motor.stop()
 
-    # Back off and turn RIGHT (negative angle under +CCW convention)
+    # Back off and turn RIGHT so that the front wall becomes the LEFT wall
     bot.move_backward(0.18)
-    bot.turn(-90, 100)
+    bot.turn(-90, 100)  # right turn under +θ = CCW
 
-    # Record the pose we want to return to (x, y, theta)
+    # Pose to return near (x, y, theta)
     return_pos = [bot.get_x(), bot.get_y(), bot.get_theta()]
 
-    # (Optional) show heading right after the turn for sanity
+    # Optional quick heading print
     bot.brick.screen.clear()
     bot.brick.screen.print("theta(deg): " + str(int(bot.get_theta() * 180.0 / math.pi)))
     wait(400)
 
-    # Follow the wall until we loop back near return_pos
+    # Follow the LEFT wall until we loop back
     bot.wall_follow(start_pos, return_pos)
 
 

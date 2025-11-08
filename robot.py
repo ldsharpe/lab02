@@ -1,8 +1,7 @@
 from pybricks.hubs import EV3Brick
-from pybricks.ev3devices import (Motor, TouchSensor, ColorSensor,
-                                 InfraredSensor, UltrasonicSensor, GyroSensor)
-from pybricks.parameters import Port, Stop, Direction, Button, Color
-from pybricks.tools import wait, StopWatch, DataLog
+from pybricks.ev3devices import (Motor, TouchSensor, UltrasonicSensor)
+from pybricks.parameters import Port, Stop, Direction, Button
+from pybricks.tools import wait
 
 import math
 
@@ -11,16 +10,16 @@ class Robot:
     def __init__(self):
         self.brick = EV3Brick()
 
-        # Physical dimensions (track width = center-to-center between wheels)
+        # Physical dimensions (TRACK width = center-to-center between wheels)
         self.length       = 0.18   # m (not used in kinematics)
-        self.width        = 0.111  # m  <-- this is your measured TRACK WIDTH
-        self.height       = 0.128  # m (not used in kinematics)
+        self.width        = 0.111  # m  <-- your measured TRACK WIDTH
+        self.height       = 0.128  # m (not used)
         self.wheel_radius = 0.028  # m
 
-        # Pose
+        # Pose (radians, +CCW)
         self.x = 0.0
         self.y = 0.0
-        self.theta = 0.0  # radians, +CCW
+        self.theta = 0.0
 
         # Motors
         self.left_motor  = Motor(Port.B, Direction.CLOCKWISE)
@@ -33,7 +32,7 @@ class Robot:
         self.prev_right = 0.0
 
         # Sensors
-        self.ultrasonic_sensor = UltrasonicSensor(Port.S1)
+        self.ultrasonic_sensor = UltrasonicSensor(Port.S1)  # facing LEFT side
         self.touch_sensor_left = TouchSensor(Port.S2)
         self.touch_sensor_right = TouchSensor(Port.S3)
 
@@ -72,7 +71,6 @@ class Robot:
         self.right_motor.run(speed)
 
     def creep_forward_until(self, stop_fn, speed=200, period_ms=30):
-        # Self-contained version if you prefer
         self.left_motor.run(speed)
         self.right_motor.run(speed)
         while not stop_fn():
@@ -93,7 +91,7 @@ class Robot:
         self.left_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=False)
         self.right_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=True)
 
-        # Integrate this motion and then resync baselines so the next tick doesn't re-count it
+        # Integrate this motion and resync baselines
         self.update_position()
         self.prev_left  = self.left_motor.angle()
         self.prev_right = self.right_motor.angle()
@@ -116,10 +114,10 @@ class Robot:
             self.left_motor.run_angle(speed, -rotation_degrees, Stop.BRAKE, wait=False)
             self.right_motor.run_angle(speed,  rotation_degrees, Stop.BRAKE, wait=True)
 
-        # Update heading in radians; no normalization per your preference
+        # Update heading (no normalization)
         self.theta += (angle_deg * math.pi / 180.0)
 
-        # Resync baselines after blocking turn so odom doesn't double-count it
+        # Resync baselines after blocking turn
         self.prev_left  = self.left_motor.angle()
         self.prev_right = self.right_motor.angle()
 
@@ -135,7 +133,6 @@ class Robot:
         dL = (left_angle  - self.prev_left)  * (math.pi / 180.0) * r
         dR = (right_angle - self.prev_right) * (math.pi / 180.0) * r
 
-        # Advance baselines
         self.prev_left  = left_angle
         self.prev_right = right_angle
 
@@ -147,18 +144,18 @@ class Robot:
         self.y     += ds * math.sin(self.theta + 0.5 * dtheta)
         self.theta += dtheta
 
-    # -------------------- Wall following (right-hand wall) --------------------
+    # -------------------- Wall following (LEFT-hand wall) --------------------
 
     def wall_follow(
         self,
         start_pos,
         return_pos,
-        target_distance=0.15,
+        target_distance=0.15,   # desired distance to the LEFT wall
         base_speed=100,
         kp=250, ki=2.0, kd=50
     ):
         """
-        Follow a convex wall using the right-hand side ultrasonic distance
+        Follow a convex wall on the LEFT side using the left-facing ultrasonic sensor
         until we return near 'return_pos'.
         """
 
@@ -181,7 +178,7 @@ class Robot:
         last_R = 0.0
 
         while True:
-            # Stop when back near the start (uses your tolerances + check flag)
+            # Stop when back near the start (your tolerances + check flag)
             if (
                 abs(return_pos[0] - self.x) <= 0.15
                 and abs(return_pos[1] - self.y) <= 0.10
@@ -192,21 +189,22 @@ class Robot:
             # Range reading with simple sanity handling
             distance = self.get_ultrasonic_distance()
             if distance <= 0 or distance > 1.0:
-                distance = 0.23  # fallback
+                distance = target_distance  # fallback
 
-            # Safety dodge if too close
+            # If too close to the LEFT wall, nudge RIGHT (CW)
             if distance < 0.08:
-                self.turn(8, 50)  # small CCW nudge
+                self.turn(-8, 50)  # small right nudge away from left wall
                 wait(100)
                 distance = self.get_ultrasonic_distance()
 
-            # If bumpers hit, back up and take a right turn
+            # Bumpers: back up and turn RIGHT to get off the left wall
             if self.touch_sensor_left.pressed() or self.touch_sensor_right.pressed():
                 self.move_backward(0.15)
                 self.turn(-90, 100)
 
-            # PID on lateral error (right-hand wall, target on the right)
-            error = target_distance - distance
+            # -------- LEFT-wall PID control --------
+            # error > 0  => too far from LEFT wall => steer LEFT (CCW)
+            error = distance - target_distance
             derivative = error - last_error
             last_error = error
 
@@ -218,8 +216,11 @@ class Robot:
             if correction >  CORR_CAP: correction =  CORR_CAP
             if correction < -CORR_CAP: correction = -CORR_CAP
 
-            left_speed  = base_speed + correction
-            right_speed = base_speed - correction
+            # For LEFT-wall following, steer LEFT when error>0:
+            # Make left wheel slower, right wheel faster
+            left_speed  = base_speed - correction
+            right_speed = base_speed + correction
+
             if left_speed  > MAX_SPD: left_speed  = MAX_SPD
             if left_speed  < MIN_SPD: left_speed  = MIN_SPD
             if right_speed > MAX_SPD: right_speed = MAX_SPD
@@ -237,7 +238,7 @@ class Robot:
                 str(self.theta)
             )
 
-            # (Optional) keep local wheel deltas if you need them elsewhere
+            # (Optional) wheel deltas if you need them
             cur_L = self.left_motor.angle()
             cur_R = self.right_motor.angle()
             _dL = (cur_L - last_L) * (2 * math.pi * r) / 360.0
