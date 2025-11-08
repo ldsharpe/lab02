@@ -19,16 +19,13 @@ def main():
     while bot.is_touching_wall() == False:
         bot.creep_forward()
     
-    bot.move_backward(0.15)
+    bot.move_backward(0.18)
     bot.turn(90, 100)
 
     return_pos = [bot.get_x(), bot.get_y(), bot.get_theta()]
     check = True
 
     bot.wall_follow(start_pos, return_pos)
-
-
-    
 
 
 
