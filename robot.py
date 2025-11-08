@@ -77,6 +77,8 @@ class Robot:
         self.right_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=True)
 
         self.update_position()
+        self.prev_left = self.left_motor.angle()
+        self.prev_right = self.right_motor.angle()
 
 
     
@@ -144,7 +146,7 @@ class Robot:
             self.left_motor.run_angle(speed, -rotation_degrees, Stop.BRAKE, wait=False)
             self.right_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=True)
         
-        self.theta += angle * (math.pi / 180)
+        self.theta -= angle * (math.pi / 180)
         self.prev_left = self.left_motor.angle()
         self.prev_right = self.right_motor.angle()
 
@@ -277,8 +279,8 @@ class Robot:
         kp=250, ki=2.0, kd=50
     ):
         # Initialize motors and PID state
-        self.left_motor.reset_angle(0)
-        self.right_motor.reset_angle(0)
+        self.prev_left = 0
+        self.prev_right = 0
 
         last_error = 0.0
         integral = 0.0
@@ -299,7 +301,7 @@ class Robot:
             # --- Position check ---
             x, y = self.get_x(), self.get_y()
 
-            # Stop when within ~5 cm of return position and the "check" flag is cleared
+            # Stop when within ~10-15 cm of return position and the "check" flag is cleared
             if (
                 abs(return_pos[0] - self.x) <= 0.15
                 and abs(return_pos[1] - self.y) <= 0.10
@@ -362,7 +364,6 @@ class Robot:
             if abs(self.x - return_pos[0]) > 0.12 and abs(self.y - return_pos[1]) > 0.22:
                 check = False
 
-        # Stop motors and beep to confirm completion
         self.left_motor.stop()
         self.right_motor.stop()
         self.beep()
