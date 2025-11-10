@@ -189,14 +189,20 @@ class Robot:
         dL = (left_angle - self.prev_left) * (math.pi / 180) * r
         dR = (right_angle - self.prev_right) * (math.pi / 180) * r
 
-
         self.prev_left = left_angle
         self.prev_right = right_angle
+
+        # Use gyro to get absolute heading in radians
+        gyro_angle_deg = self.gyro.angle()
+        self.theta = math.radians(gyro_angle_deg)
+
+        # Compute forward distance traveled (average of both wheels)
         ds = (dR + dL) / 2.0
-        dtheta = (dR - dL) / L
-        self.x += ds * math.cos(self.theta + dtheta / 2.0)
-        self.y += ds * math.sin(self.theta + dtheta / 2.0)
-        self.theta += dtheta
+
+        # Update global position using gyro heading
+        self.x += ds * math.cos(self.theta)
+        self.y += ds * math.sin(self.theta)
+
 
 
     
@@ -206,7 +212,7 @@ class Robot:
         return_pos,
         target_distance=0.15,    
         base_speed=100, 
-        kp=250, ki=2.0, kd=50
+        kp=150, ki=15, kd=1.5
     ):
         # Initialize motors and PID state
         self.prev_left = 0
@@ -230,8 +236,8 @@ class Robot:
 
             # Stop when within ~10-15 cm of return position and the "check" flag is cleared
             if (
-                abs(return_pos[0] - self.x) <= 0.15
-                and abs(return_pos[1] - self.y) <= 0.10
+                abs(return_pos[0] - self.x) <= 0.03
+                and abs(return_pos[1] - self.y) <= 0.01
                 and not check
             ):
                 break
@@ -241,19 +247,19 @@ class Robot:
 
             # --- Ultrasonic measurement ---
             distance = self.get_ultrasonic_distance()
-            if distance <= 0 or distance > 1.0:
-                distance = 0.23
+            if distance <= 0 or distance > 0.5:
+                distance = 0.50
             
 
             # If wall too close or too far, make a small right correction turn
             if distance < 0.08:
-                self.turn(8, 50)
+                self.turn(-8, 50)
                 wait(100)
                 distance = self.get_ultrasonic_distance()
             
             if self.touch_sensor_left.pressed() or self.touch_sensor_right.pressed():
                 self.move_backward(0.15)
-                self.turn(90, 100)
+                self.turn(-90, 100)
 
             self.update_position()
 
