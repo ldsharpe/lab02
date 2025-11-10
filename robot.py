@@ -34,7 +34,34 @@ class Robot:
         self.ultrasonic_sensor = UltrasonicSensor(Port.S1)
         self.touch_sensor_left = TouchSensor(Port.S2)
         self.touch_sensor_right = TouchSensor(Port.S3)
+        self.gyro = GyroSensor(Port.S4)
+        self.initialize_gyroscope()
 
+
+    def initialize_gyroscope(self):
+        self.gyro.reset_angle(0)
+        wait(100)
+
+
+    def show_gyro_angle(self):
+        self.brick.screen.clear()
+        self.brick.screen.draw_text(0, 20, "Gyro angle display")
+        wait(1000)
+
+        while True:
+            # Read gyro data
+            angle_deg = self.gyro.angle()     # degrees
+
+            # Clear and redraw on screen
+            self.brick.screen.clear()
+            self.brick.screen.print("Angle: " + str(angle_deg))
+
+            # Exit when center button is pressed
+            if Button.CENTER in self.brick.buttons.pressed():
+                self.brick.speaker.beep()
+                break
+
+            wait(100)
 
     def get_ultrasonic_distance(self):
         return self.ultrasonic_sensor.distance() / 1000
@@ -77,8 +104,6 @@ class Robot:
         self.right_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=True)
 
         self.update_position()
-        self.prev_left = self.left_motor.angle()
-        self.prev_right = self.right_motor.angle()
 
 
     
@@ -134,120 +159,25 @@ class Robot:
 
 
 
-    def turn(self, angle, speed):
+    def turn(self, angle, speed=100):
         wheel_base_radius = self.width / 2
         arc_length = (math.pi * wheel_base_radius * abs(angle)) / 180
         rotation_degrees = (arc_length / (2 * math.pi * self.wheel_radius)) * 360
 
         if angle > 0:
-            self.left_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=False)
-            self.right_motor.run_angle(speed, -rotation_degrees, Stop.BRAKE, wait=True)
-        else:
             self.left_motor.run_angle(speed, -rotation_degrees, Stop.BRAKE, wait=False)
             self.right_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=True)
+        else:
+            self.left_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=False)
+            self.right_motor.run_angle(speed, -rotation_degrees, Stop.BRAKE, wait=True)
         
-        self.theta -= angle * (math.pi / 180)
-        self.prev_left = self.left_motor.angle()
-        self.prev_right = self.right_motor.angle()
+        self.theta += math.radians(angle)
+        # self.update_position()
 
-
-
-    def wall_follow_left(
-        self,
-        start_pos,
-        return_pos=None,
-        target_distance=0.15,    
-        follow_distance=2.25,     
-        base_speed=100, 
-        kp=150, ki=2.0, kd=50
-    ):
-        # Initialize
-        self.left_motor.reset_angle(0)
-        self.right_motor.reset_angle(0)
-
-        last_error = 0.0
-        integral = 0.0
-
-        I_MAX = 0.2
-        CORR_CAP = 80.0
-        MIN_SPD, MAX_SPD = 40, 120
-
-        # Odometry constants
-        r = self.wheel_radius
-        last_L = 0.0
-        last_R = 0.0
-        distance_travelled = 0.0
-        check = True
-
-        # Keep following the wall until near return_pos (if given)
-        while True:
-            # Stop if we've reached target position
-            
-            if return_pos is not None:
-                x, y = self.get_x(), self.get_y()
-                if (
-                    abs(return_pos[0] - x) <= 0.05
-                    and abs(return_pos[1] - y) <= 0.05
-                    and not check
-                ):
-                    break
-
-            distance = self.get_ultrasonic_distance()
-            if distance <= 0 or distance > 1.0:
-                distance = target_distance
-
-            # If wall too close or too far, adjust with small turn
-            if distance < 0.08 or distance > 1.00:
-                self.turn(8, 50)
-                wait(100)
-                distance = self.get_ultrasonic_distance()
-
-            # PID control
-            error = target_distance - distance
-            derivative = error - last_error
-            last_error = error
-
-            integral += error
-            integral = max(-I_MAX, min(I_MAX, integral))
-
-            correction = kp * error + ki * integral + kd * derivative
-            correction = max(-CORR_CAP, min(CORR_CAP, correction))
-
-            left_speed  = base_speed + correction
-            right_speed = base_speed - correction
-            left_speed  = max(MIN_SPD, min(MAX_SPD, left_speed))
-            right_speed = max(MIN_SPD, min(MAX_SPD, right_speed))
-
-            self.left_motor.run(left_speed)
-            self.right_motor.run(right_speed)
-            self.update_position()
-            self.brick.screen.clear()
-            self.brick.screen.print(self.get_x(), self.get_y(), self.get_theta())
-
-            # Update distance travelled (kinematics)
-            cur_L = self.left_motor.angle()
-            cur_R = self.right_motor.angle()
-            dL = (cur_L - last_L) * (2 * math.pi * r) / 360.0
-            dR = (cur_R - last_R) * (2 * math.pi * r) / 360.0
-            last_L, last_R = cur_L, cur_R
-            ds = 0.5 * (dL + dR)
-            distance_travelled += abs(ds)
-            wait(30)
-
-            # Replicate "check" logic from main.py
-            if return_pos is not None:
-                if abs(self.get_x() - return_pos[0]) > 0.08 and abs(self.get_y() - return_pos[1]) > 0.08:
-                    check = False
-
-            # Safety stop if robot travels too far
-            if distance_travelled >= follow_distance:
-                break
-
-        self.left_motor.stop()
-        self.right_motor.stop()
-
-        self.beep()
     
+
+
+ 
     def update_position(self):
     
         r = self.wheel_radius
@@ -294,9 +224,6 @@ class Robot:
         last_L = 0.0
         last_R = 0.0
 
-        print(start_pos)
-        print(return_pos)
-
         while True:
             # --- Position check ---
             x, y = self.get_x(), self.get_y()
@@ -309,10 +236,14 @@ class Robot:
             ):
                 break
 
+            self.update_position()
+
+
             # --- Ultrasonic measurement ---
             distance = self.get_ultrasonic_distance()
             if distance <= 0 or distance > 1.0:
                 distance = 0.23
+            
 
             # If wall too close or too far, make a small right correction turn
             if distance < 0.08:
@@ -324,6 +255,7 @@ class Robot:
                 self.move_backward(0.15)
                 self.turn(90, 100)
 
+            self.update_position()
 
             # --- PID control ---
             error = target_distance - distance
@@ -358,79 +290,13 @@ class Robot:
             dR = (cur_R - last_R) * (2 * math.pi * r) / 360.0
             last_L, last_R = cur_L, cur_R
 
+            self.update_position()
+
             wait(30)
 
             # --- Update check flag logic (from your main.py loop) ---
             if abs(self.x - return_pos[0]) > 0.12 and abs(self.y - return_pos[1]) > 0.22:
                 check = False
-
-        self.left_motor.stop()
-        self.right_motor.stop()
-        self.beep()
-
-    def wall_follow_left(
-        self,
-        target_distance=0.15,    
-        follow_distance=2.25,     
-        base_speed=100, 
-        kp=150, ki=2.0, kd=50 
-    ):
-        # Initialize
-        self.left_motor.reset_angle(0)
-        self.right_motor.reset_angle(0)
-
-        last_error = 0.0
-        integral = 0.0
-
-        I_MAX = 0.2
-        CORR_CAP = 80.0
-        MIN_SPD, MAX_SPD = 40, 120
-
-        # Odometry constants
-        r = self.wheel_radius
-        last_L = 0.0
-        last_R = 0.0
-        distance_travelled = 0.0
-
-        while distance_travelled < follow_distance:
-            distance = self.get_ultrasonic_distance()
-            if distance <= 0 or distance > 1.0:
-                distance = target_distance
-
-            # If wall too close, we move the robot right slightly
-            if distance < 0.08 or distance > 1.00 :
-                self.turn(8, 50)
-                wait(100)
-                distance = self.get_ultrasonic_distance()
-
-            # PID error control
-            error = target_distance - distance
-            derivative = error - last_error
-            last_error = error
-
-            integral += error
-            integral = max(-I_MAX, min(I_MAX, integral))
-
-            correction = kp * error + ki * integral + kd * derivative
-            correction = max(-CORR_CAP, min(CORR_CAP, correction))
-
-            left_speed  = base_speed + correction
-            right_speed = base_speed - correction
-            left_speed  = max(MIN_SPD, min(MAX_SPD, left_speed))
-            right_speed = max(MIN_SPD, min(MAX_SPD, right_speed))
-
-            self.left_motor.run(left_speed)
-            self.right_motor.run(right_speed)
-
-            # Tracking distance travelled using Differential Drive Kinmatics
-            cur_L = self.left_motor.angle()
-            cur_R = self.right_motor.angle()
-            dL = (cur_L - last_L) * (2 * math.pi * r) / 360.0
-            dR = (cur_R - last_R) * (2 * math.pi * r) / 360.0
-            last_L, last_R = cur_L, cur_R
-            ds = 0.5 * (dL + dR)
-            distance_travelled += abs(ds)
-            wait(30)
 
         self.left_motor.stop()
         self.right_motor.stop()
