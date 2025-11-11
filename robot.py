@@ -40,23 +40,19 @@ class Robot:
 
     def initialize_gyroscope(self):
         self.gyro.reset_angle(0)
-        wait(100)
+        wait(1000)
 
 
     def show_gyro_angle(self):
         self.brick.screen.clear()
-        self.brick.screen.draw_text(0, 20, "Gyro angle display")
         wait(1000)
 
         while True:
-            # Read gyro data
-            angle_deg = self.gyro.angle()     # degrees
+            angle_deg = self.gyro.angle()   
 
-            # Clear and redraw on screen
             self.brick.screen.clear()
             self.brick.screen.print("Angle: " + str(angle_deg))
 
-            # Exit when center button is pressed
             if Button.CENTER in self.brick.buttons.pressed():
                 self.brick.speaker.beep()
                 break
@@ -192,14 +188,19 @@ class Robot:
         self.prev_left = left_angle
         self.prev_right = right_angle
 
-        # Use gyro to get absolute heading in radians
-        gyro_angle_deg = self.gyro.angle()
-        self.theta = math.radians(gyro_angle_deg)
+       # current_angle = self.gyro.angle()
+       # if not hasattr(self, "last_gyro"):
+        #    self.last_gyro = current_angle
+       # dtheta_gyro = math.radians(current_angle - self.last_gyro)
+       # self.last_gyro = current_angle
+       # self.theta += dtheta_gyro
 
-        # Compute forward distance traveled (average of both wheels)
+        dtheta = (dR - dL) / L
+        self.theta += dtheta
+
+
         ds = (dR + dL) / 2.0
 
-        # Update global position using gyro heading
         self.x += ds * math.cos(self.theta)
         self.y += ds * math.sin(self.theta)
 
@@ -212,9 +213,8 @@ class Robot:
         return_pos,
         target_distance=0.15,    
         base_speed=100, 
-        kp=150, ki=15, kd=1.5
+        kp=175, ki=1.5, kd=50
     ):
-        # Initialize motors and PID state
         self.prev_left = 0
         self.prev_right = 0
 
@@ -231,13 +231,11 @@ class Robot:
         last_R = 0.0
 
         while True:
-            # --- Position check ---
             x, y = self.get_x(), self.get_y()
 
-            # Stop when within ~10-15 cm of return position and the "check" flag is cleared
             if (
-                abs(return_pos[0] - self.x) <= 0.03
-                and abs(return_pos[1] - self.y) <= 0.01
+                abs(return_pos[0] - self.x) <= 0.04
+                and abs(return_pos[1] - self.y) <= 0.04
                 and not check
             ):
                 break
@@ -245,13 +243,11 @@ class Robot:
             self.update_position()
 
 
-            # --- Ultrasonic measurement ---
             distance = self.get_ultrasonic_distance()
             if distance <= 0 or distance > 0.5:
-                distance = 0.50
+                distance = 0.18
             
 
-            # If wall too close or too far, make a small right correction turn
             if distance < 0.08:
                 self.turn(-8, 50)
                 wait(100)
@@ -263,7 +259,6 @@ class Robot:
 
             self.update_position()
 
-            # --- PID control ---
             error = target_distance - distance
             derivative = error - last_error
             last_error = error
@@ -283,13 +278,10 @@ class Robot:
             self.right_motor.run(right_speed)
             self.update_position()
 
-            # --- Display odometry on EV3 screen ---
             self.brick.screen.clear()
-            # self.brick.screen.print(str(self.get_x()) + "\n" + str(self.get_y()))
             self.brick.screen.print(str(abs(self.x - return_pos[0])) + "\n" + str(abs(self.y - return_pos[1])) + "\n" + str(self.theta))
 
 
-            # --- Update wheel movement for next iteration ---
             cur_L = self.left_motor.angle()
             cur_R = self.right_motor.angle()
             dL = (cur_L - last_L) * (2 * math.pi * r) / 360.0
@@ -300,7 +292,6 @@ class Robot:
 
             wait(30)
 
-            # --- Update check flag logic (from your main.py loop) ---
             if abs(self.x - return_pos[0]) > 0.12 and abs(self.y - return_pos[1]) > 0.22:
                 check = False
 
