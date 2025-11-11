@@ -167,13 +167,11 @@ class Robot:
             self.left_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=False)
             self.right_motor.run_angle(speed, -rotation_degrees, Stop.BRAKE, wait=True)
         
-        self.theta += math.radians(angle)
+        self.theta += angle * (math.pi / 180)
         # self.update_position()
 
     
 
-
- 
     def update_position(self):
     
         r = self.wheel_radius
@@ -187,13 +185,6 @@ class Robot:
 
         self.prev_left = left_angle
         self.prev_right = right_angle
-
-       # current_angle = self.gyro.angle()
-       # if not hasattr(self, "last_gyro"):
-        #    self.last_gyro = current_angle
-       # dtheta_gyro = math.radians(current_angle - self.last_gyro)
-       # self.last_gyro = current_angle
-       # self.theta += dtheta_gyro
 
         dtheta = (dR - dL) / L
         self.theta += dtheta
@@ -213,7 +204,7 @@ class Robot:
         return_pos,
         target_distance=0.15,    
         base_speed=100, 
-        kp=175, ki=1.5, kd=50
+        kp=150, ki=0, kd=50
     ):
         self.prev_left = 0
         self.prev_right = 0
@@ -240,12 +231,10 @@ class Robot:
             ):
                 break
 
-            self.update_position()
-
 
             distance = self.get_ultrasonic_distance()
-            if distance <= 0 or distance > 0.5:
-                distance = 0.18
+            if distance <= 0 or distance > 0.3:
+                distance = 0.3
             
 
             if distance < 0.08:
@@ -257,7 +246,6 @@ class Robot:
                 self.move_backward(0.15)
                 self.turn(-90, 100)
 
-            self.update_position()
 
             error = target_distance - distance
             derivative = error - last_error
@@ -276,7 +264,6 @@ class Robot:
 
             self.left_motor.run(left_speed)
             self.right_motor.run(right_speed)
-            self.update_position()
 
             self.brick.screen.clear()
             self.brick.screen.print(str(abs(self.x - return_pos[0])) + "\n" + str(abs(self.y - return_pos[1])) + "\n" + str(self.theta))
@@ -289,7 +276,6 @@ class Robot:
             last_L, last_R = cur_L, cur_R
 
             self.update_position()
-
             wait(30)
 
             if abs(self.x - return_pos[0]) > 0.12 and abs(self.y - return_pos[1]) > 0.22:

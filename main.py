@@ -21,6 +21,7 @@ def main():
         wait(30)
     bot.left_motor.stop(); bot.right_motor.stop()
 
+    bot.beep()
     bot.move_backward(0.18)
     bot.turn(-90, 100) 
     bot.update_position()
