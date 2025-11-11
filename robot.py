@@ -154,7 +154,6 @@ class Robot:
 
 
 
-
     def turn(self, angle, speed=100):
         wheel_base_radius = self.width / 2
         arc_length = (math.pi * wheel_base_radius * abs(angle)) / 180
