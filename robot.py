@@ -114,15 +114,16 @@ class Robot:
         rotation_degrees = (arc_length / (2 * math.pi * r)) * 360.0
 
         if angle_deg > 0:
-            self.left_motor.run_angle(speed, -rotation_degrees, Stop.BRAKE, wait=False)
-            self.right_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=True)
-        else:
+            # Turn counter-clockwise
             self.left_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=False)
             self.right_motor.run_angle(speed, -rotation_degrees, Stop.BRAKE, wait=True)
+        else:
+            # Turn clockwise
+            self.left_motor.run_angle(speed, -rotation_degrees, Stop.BRAKE, wait=False)
+            self.right_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=True)
 
-        
-        self.reset_motor_baselines()
         self.update_position()
+
 
     def update_position(self):
         r = self.wheel_radius
@@ -170,13 +171,13 @@ class Robot:
         while Button.CENTER not in self.brick.buttons.pressed():
             wait(10)
 
-    def wall_follow(self, start_pos, return_pos, target_distance=0.15, base_speed=100, kp=160, ki=0, kd=50):
+    def wall_follow(self, start_pos, return_pos, target_distance=0.15, base_speed=200, kp=375, ki=0, kd=50):
         self.reset_motor_baselines()
         last_error = 0.0
         integral = 0.0
         I_MAX = 0.2
         CORR_CAP = 80.0
-        MIN_SPD, MAX_SPD = 40, 120
+        MIN_SPD, MAX_SPD = 80, 240
         MIN_TRAVEL_TO_ALLOW_EXIT = 0.35
         traveled_accum = 0.0
         prev_x, prev_y = self.x, self.y
@@ -245,3 +246,17 @@ class Robot:
         
         if dist > stop_tol:
             self.move_forward(dist, speed=speed)
+
+    def turn_towards_goal(self, goal_x=2.5, goal_y=2.5, speed=100):
+        self.update_position()
+        dx = goal_x - self.x
+        dy = goal_y - self.y
+
+        if dx == 0 and dy == 0:
+            return  # already at goal
+
+        target_theta = math.atan2(dy, dx)
+        current_theta = self.theta
+        dtheta = self._wrap_pi(target_theta - current_theta)
+        self.turn(math.degrees(dtheta), speed)
+
