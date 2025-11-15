@@ -15,7 +15,7 @@ def main():
     return_pos = [0.0, 0.0, 0.0]
 
     bot.creep_forward(speed=200)
-    while not bot.is_touching_wall():
+    while not bot.touch_sensor_left.pressed() and not bot.touch_sensor_right.pressed():
         bot.update_position()
         wait(30)
     bot.left_motor.stop(); bot.right_motor.stop()

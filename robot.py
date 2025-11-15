@@ -120,7 +120,6 @@ class Robot:
             self.left_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=False)
             self.right_motor.run_angle(speed, -rotation_degrees, Stop.BRAKE, wait=True)
 
-        
         self.reset_motor_baselines()
         self.update_position()
 
@@ -170,13 +169,13 @@ class Robot:
         while Button.CENTER not in self.brick.buttons.pressed():
             wait(10)
 
-    def wall_follow(self, start_pos, return_pos, target_distance=0.15, base_speed=100, kp=160, ki=0, kd=50):
+    def wall_follow(self, start_pos, return_pos, target_distance=0.15, base_speed=200, kp=375, ki=0, kd=50):
         self.reset_motor_baselines()
         last_error = 0.0
         integral = 0.0
         I_MAX = 0.2
-        CORR_CAP = 80.0
-        MIN_SPD, MAX_SPD = 40, 120
+        CORR_CAP = 150.0
+        MIN_SPD, MAX_SPD = 80, 280
         MIN_TRAVEL_TO_ALLOW_EXIT = 0.35
         traveled_accum = 0.0
         prev_x, prev_y = self.x, self.y
@@ -184,21 +183,22 @@ class Robot:
         def near_return():
             dx = self.x - return_pos[0]
             dy = self.y - return_pos[1]
-            return (abs(dx) <= 0.06) and (abs(dy) <= 0.06)
+            return (abs(dx) <= 0.03) and (abs(dy) <= 0.08)
 
-        while True:
+        while True: 
             distance = self.get_ultrasonic_distance()
+            if self.touch_sensor_left.pressed() or self.touch_sensor_right.pressed():
+                self.move_backward(0.15)
+                self.turn(-90, 100)
+                prev_x, prev_y = self.x, self.y
+                continue
             if distance <= 0 or distance > 0.6:
                 distance = 0.30
             if distance < 0.08:
                 self.turn(-8, 60)
                 prev_x, prev_y = self.x, self.y
                 continue
-            if self.touch_sensor_left.pressed() or self.touch_sensor_right.pressed():
-                self.move_backward(0.15)
-                self.turn(-90, 100)
-                prev_x, prev_y = self.x, self.y
-                continue
+
 
             error = target_distance - distance
             derivative = error - last_error
@@ -242,6 +242,6 @@ class Robot:
         dx = x_tgt - self.x
         dy = y_tgt - self.y
         dist = math.hypot(dx, dy)
-        
+
         if dist > stop_tol:
             self.move_forward(dist, speed=speed)
