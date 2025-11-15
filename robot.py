@@ -9,7 +9,7 @@ class Robot:
     def __init__(self):
         self.brick = EV3Brick()
         self.length = 0.18
-        self.width = 0.111
+        self.width = 0.122
         self.height = 0.128
         self.wheel_radius = 0.028
         self.x = 0.0
@@ -74,7 +74,7 @@ class Robot:
 
     def read_gyro_heading_rad(self):
         raw_deg = self.gyro.angle()
-        heading_deg = self.heading_bias_deg + raw_deg
+        heading_deg = self.heading_bias_deg - raw_deg
         return math.radians(heading_deg)
 
     def get_ultrasonic_distance(self):
@@ -100,7 +100,6 @@ class Robot:
         self.left_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=False)
         self.right_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=True)
 
-        self.reset_motor_baselines()
         self.update_position()
 
     def move_backward(self, distance, speed=200):
@@ -120,7 +119,6 @@ class Robot:
             self.left_motor.run_angle(speed, rotation_degrees, Stop.BRAKE, wait=False)
             self.right_motor.run_angle(speed, -rotation_degrees, Stop.BRAKE, wait=True)
 
-        self.reset_motor_baselines()
         self.update_position()
 
     def update_position(self):
@@ -135,16 +133,16 @@ class Robot:
         self.prev_left_deg = left_deg
         self.prev_right_deg = right_deg
 
-        dtheta_enc = (dR - dL) / L
-        theta_gyro = self.read_gyro_heading_rad()
-        theta_pred = self.theta + dtheta_enc
-        theta_new = self.GYRO_W * theta_gyro + (1.0 - self.GYRO_W) * theta_pred
-        ds = 0.5 * (dR + dL)
-        theta_mid = self.theta + 0.5 * (theta_new - self.theta)
 
-        self.x += ds * math.cos(theta_mid)
-        self.y += ds * math.sin(theta_mid)
-        self.theta = theta_new
+        theta = self.read_gyro_heading_rad()
+        ds = 0.5 * (dR + dL)
+
+        print("before: " + str(self.x) + " " + str(self.y))
+        self.x += ds * math.cos(theta)
+        self.y += ds * math.sin(theta)
+        self.theta = theta
+        print("after: " + str(self.x) + " " + str(self.y))
+
 
     def show_gyro_angle(self):
         self.brick.screen.clear()

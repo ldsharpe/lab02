@@ -35,9 +35,19 @@ def main():
 
 def x():
     bot = Robot()
+
+
     bot.wait_for_button_press()
-    bot.show_gyro_angle()
+
+    # while True:
+    #     bot.update_position()
+    #     wait(1000)
+    bot.move_forward(0.5)
+    bot.turn(90, 100)
+    bot.move_forward(0.5)
+    bot.brick.screen.print("Angle: " + str(bot.get_theta()) + "\n" + str(bot.get_x()) + "\n" + str(bot.get_y()))
+    wait(5000)
 
 
 if __name__ == "__main__":
-    main()
+    x()
