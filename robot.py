@@ -105,6 +105,17 @@ class Robot:
     def move_backward(self, distance, speed=200):
         self.move_forward(-distance, speed=speed)
 
+    
+    def move(self, left_speed, right_speed):
+        self.left_motor.run(left_speed)
+        self.right_motor.run(right_speed)
+
+    
+    def stop(self):
+        self.left_motor.stop()
+        self.right_motor.stop()
+
+
     def turn(self, angle_deg, speed=100):
         L = self.width
         r = self.wheel_radius
@@ -125,23 +136,43 @@ class Robot:
         r = self.wheel_radius
         L = self.width
 
-        left_deg = self.left_motor.angle()
+        # --- 1. Read encoder angles ---
+        left_deg  = self.left_motor.angle()
         right_deg = self.right_motor.angle()
-        dL = (left_deg - self.prev_left_deg) * (math.pi / 180.0) * r
-        dR = (right_deg - self.prev_right_deg) * (math.pi / 180.0) * r
 
-        self.prev_left_deg = left_deg
+        # Convert degree change → meters
+        dL = math.radians(left_deg  - self.prev_left_deg) * r
+        dR = math.radians(right_deg - self.prev_right_deg) * r
+
+        # Save encoder state
+        self.prev_left_deg  = left_deg
         self.prev_right_deg = right_deg
 
+        # --- 2. Compute encoder curvature ---
+        ds = 0.5 * (dL + dR)          # forward distance
+        dtheta_enc = (dR - dL) / L    # encoder turn amount
 
-        theta = self.read_gyro_heading_rad()
-        ds = 0.5 * (dR + dL)
+        # --- 3. Read gyro heading (absolute) ---
+        theta_g = self.read_gyro_heading_rad()
 
-        print("before: " + str(self.x) + " " + str(self.y))
-        self.x += ds * math.cos(theta)
-        self.y += ds * math.sin(theta)
-        self.theta = theta
-        print("after: " + str(self.x) + " " + str(self.y))
+        # Use average angle during this time step
+        theta_prev = self.theta
+        theta_avg = 0.5 * (theta_prev + theta_g)
+
+        # --- 4. Update x,y using correct geometry ---
+        if abs(dtheta_enc) < 1e-6:
+            # Straight line (very small turn)
+            self.x += ds * math.cos(theta_avg)
+            self.y += ds * math.sin(theta_avg)
+        else:
+            # Moving on a circular arc (correct differential-drive formula)
+            R = ds / dtheta_enc
+            self.x += R * (math.sin(theta_g) - math.sin(theta_prev))
+            self.y -= R * (math.cos(theta_g) - math.cos(theta_prev))
+
+        # --- 5. Final heading update ---
+        self.theta = theta_g
+
 
 
     def show_gyro_angle(self):
@@ -243,3 +274,16 @@ class Robot:
 
         if dist > stop_tol:
             self.move_forward(dist, speed=speed)
+
+    
+    def print_pose(self):
+        self.brick.screen.print(
+                str(round(self.x, 3)) + "\n" + str(round(self.y, 3)) + "\n" + str(round(self.theta, 3))
+            )
+
+    def move_angle(self, left_speed, right_speed):
+        while True:
+            self.left_motor.run(left_speed)
+            self.right_motor.run(right_speed)
+            print(self.left_motor.angle(), self.right_motor.angle())
+

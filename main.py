@@ -1,6 +1,6 @@
 #!/usr/bin/env pybricks-micropython
 from robot import Robot
-from pybricks.tools import wait
+from pybricks.tools import wait, StopWatch
 
 # Lucas Sharpe - 730545934
 # Yuvraj Jain  - 730465868
@@ -36,17 +36,20 @@ def main():
 def x():
     bot = Robot()
 
-
     bot.wait_for_button_press()
 
-    # while True:
-    #     bot.update_position()
-    #     wait(1000)
-    bot.move_forward(0.5)
-    bot.turn(90, 100)
-    bot.move_forward(0.5)
-    bot.brick.screen.print("Angle: " + str(bot.get_theta()) + "\n" + str(bot.get_x()) + "\n" + str(bot.get_y()))
-    wait(5000)
+    bot.move(175, 225)
+    watch = StopWatch()
+    duration = 8000    
+
+    while watch.time() < duration:
+        bot.update_position()
+        wait(50)
+
+    bot.stop()
+    bot.print_pose()
+    bot.wait_for_button_press()
+
 
 
 if __name__ == "__main__":
