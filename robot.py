@@ -134,43 +134,40 @@ class Robot:
 
     def update_position(self):
         r = self.wheel_radius
-        L = self.width
 
         # --- 1. Read encoder angles ---
         left_deg  = self.left_motor.angle()
         right_deg = self.right_motor.angle()
 
-        # Convert degree change → meters
+        # Convert degree change → meters for each wheel
         dL = math.radians(left_deg  - self.prev_left_deg) * r
         dR = math.radians(right_deg - self.prev_right_deg) * r
 
-        # Save encoder state
+        # Save encoder state for next step
         self.prev_left_deg  = left_deg
         self.prev_right_deg = right_deg
 
-        # --- 2. Compute encoder curvature ---
-        ds = 0.5 * (dL + dR)          # forward distance
-        dtheta_enc = (dR - dL) / L    # encoder turn amount
+        # Forward motion (average of both wheels)
+        ds = 0.5 * (dL + dR)
 
-        # --- 3. Read gyro heading (absolute) ---
-        theta_g = self.read_gyro_heading_rad()
-
-        # Use average angle during this time step
+        # --- 2. Get new heading from gyro ---
         theta_prev = self.theta
-        theta_avg = 0.5 * (theta_prev + theta_g)
+        theta_g = self._wrap_pi(self.read_gyro_heading_rad())
+        dtheta_g = self._wrap_pi(theta_g - theta_prev)
 
-        # --- 4. Update x,y using correct geometry ---
-        if abs(dtheta_enc) < 1e-6:
-            # Straight line (very small turn)
-            self.x += ds * math.cos(theta_avg)
-            self.y += ds * math.sin(theta_avg)
+        # --- 3. Update x,y ---
+        if abs(dtheta_g) < 1e-6:
+            # Essentially straight: use heading at midpoint for better accuracy
+            theta_mid = theta_prev  # or 0.5 * (theta_prev + theta_g), almost same
+            self.x += ds * math.cos(theta_mid)
+            self.y += ds * math.sin(theta_mid)
         else:
-            # Moving on a circular arc (correct differential-drive formula)
-            R = ds / dtheta_enc
-            self.x += R * (math.sin(theta_g) - math.sin(theta_prev))
-            self.y -= R * (math.cos(theta_g) - math.cos(theta_prev))
+            # Robot moved on a circular arc of radius R = ds / dtheta
+            R = ds / dtheta_g
+            self.x += R * (math.sin(theta_prev + dtheta_g) - math.sin(theta_prev))
+            self.y -= R * (math.cos(theta_prev + dtheta_g) - math.cos(theta_prev))
 
-        # --- 5. Final heading update ---
+        # --- 4. Commit new heading ---
         self.theta = theta_g
 
 
