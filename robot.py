@@ -12,16 +12,19 @@ class Robot:
         self.width = 0.122
         self.height = 0.128
         self.wheel_radius = 0.028
-        self.x = 0.5
-        self.y = 0.0
-        self.theta = 0.0
+
 
         self.prev_left_deg = 0.0
         self.prev_right_deg = 0.0
 
         self.GYRO_W = 1.0
 
+
+        self.start = [0.5 - 0.095, 0 - 0.09, 0]
         self.goal = [2.5, 2.5, 0]
+
+        self.m = ((self.goal[1] - self.start[1]) / (self.goal[0] - self.start[0]))
+        self.b = self.goal[1] - self.m * self.goal[0]
 
         self.left_motor = Motor(Port.B, Direction.CLOCKWISE)
         self.right_motor = Motor(Port.C, Direction.CLOCKWISE)
@@ -32,7 +35,9 @@ class Robot:
         self.gyro = GyroSensor(Port.S4)
         self.heading_bias_deg = 0.0
         self.reset_odometry()
-        self.x = 0.5
+        self.x = self.start[0]
+        self.y = self.start[1]
+        self.theta = self.start[2]
 
     def reset_motor_baselines(self):
         self.prev_left_deg = self.left_motor.angle()
@@ -287,11 +292,11 @@ class Robot:
     def near_goal(self):
         dx = self.x - self.goal[0]
         dy = self.y - self.goal[1]
-        return (abs(dx) <= 0.10) and (abs(dy) <= 0.10)
+        return (abs(dx) <= 0.05) and (abs(dy) <= 0.05)
 
     
     def on_m_line(self):
-        line_y = 1.25 * self.x - 0.625
+        line_y = self.m * self.x + self.b
         return abs(self.y - line_y) <= 0.10
 
 

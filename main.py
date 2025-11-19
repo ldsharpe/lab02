@@ -67,6 +67,9 @@ def x():
         bot.turn(-90, 100)
         
         goal_reached = bot.wall_follow_goal()
+    
+    bot.turn_towards_point(2.5, 2.5)
+    bot.beep()
         
 
 
