@@ -12,7 +12,7 @@ class Robot:
         self.width = 0.122
         self.height = 0.128
         self.wheel_radius = 0.028
-        self.x = 0.0
+        self.x = 0.5
         self.y = 0.0
         self.theta = 0.0
 
@@ -20,6 +20,8 @@ class Robot:
         self.prev_right_deg = 0.0
 
         self.GYRO_W = 1.0
+
+        self.goal = [2.5, 2.5, 0]
 
         self.left_motor = Motor(Port.B, Direction.CLOCKWISE)
         self.right_motor = Motor(Port.C, Direction.CLOCKWISE)
@@ -30,6 +32,7 @@ class Robot:
         self.gyro = GyroSensor(Port.S4)
         self.heading_bias_deg = 0.0
         self.reset_odometry()
+        self.x = 0.5
 
     def reset_motor_baselines(self):
         self.prev_left_deg = self.left_motor.angle()
@@ -51,7 +54,7 @@ class Robot:
         self.update_position()
         dx = x_tgt - self.x
         dy = y_tgt - self.y
-        dist = math.hypot(dx, dy)
+        dist = math.sqrt(dx*dx + dy*dy)
 
         if dist < near_tol:
             return
@@ -59,6 +62,7 @@ class Robot:
         th = self.theta
         th_des = math.atan2(dy, dx)
         dth = self._wrap_pi(th_des - th)
+        print(th, th_des, dth)
 
         if prefer_right and dth > 0:
             if dth >= math.radians(90):
@@ -83,6 +87,9 @@ class Robot:
     def get_x(self): return self.x
     def get_y(self): return self.y
     def get_theta(self): return self.theta
+
+    def get_pose(self):
+        return [self.x, self.y, self.theta]
 
     def distance_to_degrees(self, distance):
         return (distance / (2 * math.pi * self.wheel_radius)) * 360.0
@@ -135,39 +142,30 @@ class Robot:
     def update_position(self):
         r = self.wheel_radius
 
-        # --- 1. Read encoder angles ---
         left_deg  = self.left_motor.angle()
         right_deg = self.right_motor.angle()
 
-        # Convert degree change → meters for each wheel
         dL = math.radians(left_deg  - self.prev_left_deg) * r
         dR = math.radians(right_deg - self.prev_right_deg) * r
 
-        # Save encoder state for next step
         self.prev_left_deg  = left_deg
         self.prev_right_deg = right_deg
 
-        # Forward motion (average of both wheels)
         ds = 0.5 * (dL + dR)
 
-        # --- 2. Get new heading from gyro ---
         theta_prev = self.theta
         theta_g = self._wrap_pi(self.read_gyro_heading_rad())
         dtheta_g = self._wrap_pi(theta_g - theta_prev)
 
-        # --- 3. Update x,y ---
         if abs(dtheta_g) < 1e-6:
-            # Essentially straight: use heading at midpoint for better accuracy
-            theta_mid = theta_prev  # or 0.5 * (theta_prev + theta_g), almost same
+            theta_mid = theta_prev 
             self.x += ds * math.cos(theta_mid)
             self.y += ds * math.sin(theta_mid)
         else:
-            # Robot moved on a circular arc of radius R = ds / dtheta
             R = ds / dtheta_g
             self.x += R * (math.sin(theta_prev + dtheta_g) - math.sin(theta_prev))
             self.y -= R * (math.cos(theta_prev + dtheta_g) - math.cos(theta_prev))
 
-        # --- 4. Commit new heading ---
         self.theta = theta_g
 
 
@@ -202,17 +200,18 @@ class Robot:
         I_MAX = 0.2
         CORR_CAP = 150.0
         MIN_SPD, MAX_SPD = 80, 280
-        MIN_TRAVEL_TO_ALLOW_EXIT = 0.35
+        MIN_TRAVEL_TO_ALLOW_EXIT = 0.40
         traveled_accum = 0.0
         prev_x, prev_y = self.x, self.y
 
         def near_return():
             dx = self.x - return_pos[0]
             dy = self.y - return_pos[1]
-            return (abs(dx) <= 0.03) and (abs(dy) <= 0.08)
+            return (abs(dx) <= 0.10) and (abs(dy) <= 0.10)
 
         while True: 
             distance = self.get_ultrasonic_distance()
+            print(self.x, self.y, self.theta)
             if self.touch_sensor_left.pressed() or self.touch_sensor_right.pressed():
                 self.move_backward(0.15)
                 self.turn(-90, 100)
@@ -267,7 +266,7 @@ class Robot:
         self.update_position()
         dx = x_tgt - self.x
         dy = y_tgt - self.y
-        dist = math.hypot(dx, dy)
+        dist = math.sqrt(dx*dx + dy*dy)
 
         if dist > stop_tol:
             self.move_forward(dist, speed=speed)
@@ -284,3 +283,81 @@ class Robot:
             self.right_motor.run(right_speed)
             print(self.left_motor.angle(), self.right_motor.angle())
 
+
+    def near_goal(self):
+        dx = self.x - self.goal[0]
+        dy = self.y - self.goal[1]
+        return (abs(dx) <= 0.10) and (abs(dy) <= 0.10)
+
+    
+    def on_m_line(self):
+        line_y = 1.25 * self.x - 0.625
+        return abs(self.y - line_y) <= 0.10
+
+
+
+    def wall_follow_goal(self, target_distance=0.15, base_speed=200, kp=375, ki=0, kd=50):
+        self.reset_motor_baselines()
+        last_error = 0.0
+        integral = 0.0
+        I_MAX = 0.2
+        CORR_CAP = 150.0
+        MIN_SPD, MAX_SPD = 80, 280
+        MIN_TRAVEL_TO_ALLOW_EXIT = 0.30
+        traveled_accum = 0.0
+        prev_x, prev_y = self.x, self.y
+
+        while True: 
+            distance = self.get_ultrasonic_distance()
+           # print(self.x, self.y, self.theta)
+            if self.touch_sensor_left.pressed() or self.touch_sensor_right.pressed():
+                self.move_backward(0.15)
+                self.turn(-90, 100)
+                prev_x, prev_y = self.x, self.y
+                continue
+            if distance <= 0 or distance > 0.6:
+                distance = 0.30
+            if distance < 0.08:
+                self.turn(-8, 60)
+                prev_x, prev_y = self.x, self.y
+                continue
+
+            if self.near_goal():
+                return True
+
+            if self.on_m_line() and traveled_accum >= MIN_TRAVEL_TO_ALLOW_EXIT:
+                return False
+
+
+            error = target_distance - distance
+            derivative = error - last_error
+            last_error = error
+            integral += error
+
+            integral = max(-I_MAX, min(I_MAX, integral))
+            correction = kp * error + ki * integral + kd * derivative
+            correction = max(-CORR_CAP, min(CORR_CAP, correction))
+
+            left_speed = base_speed + correction
+            right_speed = base_speed - correction
+            left_speed = max(MIN_SPD, min(MAX_SPD, left_speed))
+            right_speed = max(MIN_SPD, min(MAX_SPD, right_speed))
+
+            self.left_motor.run(left_speed)
+            self.right_motor.run(right_speed)
+            self.update_position()
+
+            dx = self.x - prev_x
+            dy = self.y - prev_y
+            step = math.sqrt(dx*dx + dy*dy)
+            traveled_accum += step
+            prev_x, prev_y = self.x, self.y
+            self.brick.screen.clear()
+            self.brick.screen.print(
+                str(round(dx, 3)) + "\n" + str(round(dy, 3)) + "\n" + str(round(self.theta, 3))
+            )
+
+            wait(30)
+        self.left_motor.stop()
+        self.right_motor.stop()
+        self.beep()

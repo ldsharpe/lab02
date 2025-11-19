@@ -38,18 +38,36 @@ def x():
 
     bot.wait_for_button_press()
 
-    bot.move(175, 225)
-    watch = StopWatch()
-    duration = 8000    
+    goal_reached = False
 
-    while watch.time() < duration:
-        bot.update_position()
-        wait(50)
+    while not goal_reached:
+        wait(100)
+        bot.turn_towards_point(2.5, 2.5)
+        wait(100)
 
-    bot.stop()
-    bot.print_pose()
-    bot.wait_for_button_press()
+        watch = StopWatch()
+        watch.reset()
 
+        while not bot.touch_sensor_left.pressed() and not bot.touch_sensor_right.pressed():
+            bot.update_position()
+            bot.move(200, 200)
+            print(bot.get_x(), bot.get_y())
+            wait(30)
+            if bot.near_goal():
+                goal_reached = True
+                break
+            if watch.time() > 2000:   
+                bot.turn_towards_point(2.5, 2.5)
+                watch.reset()
+
+        if goal_reached is True:
+            break         
+        
+        bot.move_backward(0.18)
+        bot.turn(-90, 100)
+        
+        goal_reached = bot.wall_follow_goal()
+        
 
 
 if __name__ == "__main__":
