@@ -243,7 +243,7 @@ class Robot:
         return d <= tol
 
 
-    def wall_follow_goal(self, target_distance=0.15, base_speed=200, kp=375, ki=0, kd=50):
+    def wall_follow_goal(self, master_watch, target_distance=0.15, base_speed=200, kp=375, ki=0, kd=50):
         self.reset_motor_baselines()
         last_error = 0.0
         integral = 0.0
@@ -255,6 +255,9 @@ class Robot:
         prev_x, prev_y = self.x, self.y
 
         while True: 
+            if master_watch and master_watch.time() > 179000:
+                self.stop()
+                return False
             distance = self.get_ultrasonic_distance()
            # print(self.x, self.y, self.theta)
             if self.touch_sensor_left.pressed() or self.touch_sensor_right.pressed():

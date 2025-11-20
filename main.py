@@ -13,7 +13,13 @@ def main():
 
     goal_reached = False
 
+    master_watch = StopWatch()
+    master_watch.reset()
+
     while not goal_reached:
+        if master_watch.time() > 179000:
+            bot.stop()
+            return
         wait(100)
         bot.turn_towards_point(2.5, 2.5)
         wait(100)
@@ -22,6 +28,9 @@ def main():
         watch.reset()
 
         while not bot.touch_sensor_left.pressed() and not bot.touch_sensor_right.pressed():
+            if master_watch.time() > 179000:
+                bot.stop()
+                return
             bot.update_position()
             bot.move(350, 350)
             print(bot.get_x(), bot.get_y())
@@ -36,12 +45,17 @@ def main():
         if goal_reached is True:
             break         
         
+        
         bot.move_backward(0.18)
         bot.turn(-90, 200)
+
+        if master_watch.time() > 179000:
+            bot.stop()
+            return
         
-        goal_reached = bot.wall_follow_goal()
+        goal_reached = bot.wall_follow_goal(master_watch=master_watch)
     
-    bot.turn_towards_point(2.5, 2.5)
+    # bot.turn_towards_point(2.5, 2.5)
     bot.beep()
         
 
